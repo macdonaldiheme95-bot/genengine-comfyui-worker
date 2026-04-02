@@ -81,7 +81,7 @@ RUN mkdir -p models/insightface/models/antelopev2 && \
     pip install --no-cache-dir insightface onnxruntime && \
     wget -q -O /tmp/antelopev2.zip \
     "https://huggingface.co/MonsterMMORPG/tools/resolve/main/antelopev2.zip" && \
-    unzip -o /tmp/antelopev2.zip -d models/insightface/models/antelopev2/ && \
+    python -c "import zipfile; zipfile.ZipFile('/tmp/antelopev2.zip').extractall('models/insightface/models/antelopev2/')" && \
     rm /tmp/antelopev2.zip
 
 # EVA-CLIP (required by PuLID for image encoding)
