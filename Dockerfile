@@ -19,6 +19,9 @@ FROM timpietruskyblibla/runpod-worker-comfy:3.6.0-sdxl
 
 ENV PATH="/opt/venv/bin:${PATH}"
 
+# Upgrade pip first — base image has old pip with resolver bugs
+RUN pip install --no-cache-dir --upgrade pip
+
 # ── Custom Nodes ─────────────────────────────────────────────────────────────
 
 WORKDIR /comfyui/custom_nodes
@@ -42,7 +45,9 @@ RUN git clone https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite.git && \
     fi
 
 # Wan Video Wrapper — Wan 2.2 i2v and Wan Animate nodes
+# Install accelerate first (main heavy dep), then the rest
 RUN git clone https://github.com/kijai/ComfyUI-WanVideoWrapper.git && \
+    pip install --no-cache-dir accelerate && \
     if [ -f ComfyUI-WanVideoWrapper/requirements.txt ]; then \
       pip install --no-cache-dir -r ComfyUI-WanVideoWrapper/requirements.txt; \
     fi
