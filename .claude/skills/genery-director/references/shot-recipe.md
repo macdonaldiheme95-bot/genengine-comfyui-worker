@@ -95,14 +95,20 @@ The worker in this repo (see Dockerfile/README) runs:
   identity.
 - **Motion**: Wan 2.2 image-to-video at 480p. Plan clips around ~5s per
   generation and cut tighter in the edit.
+- **Interpolate**: RIFE VFI (fast, default) or FILM VFI (better on big motion)
+  after the Wan decode.
 - **Finish**: 4x-UltraSharp upscale, then edit, retime and grade outside ComfyUI.
 
 Two limits shape the plan:
 
-- **Frame rate.** Wan renders about 16 fps. Slow motion, speed ramps and
-  bullet-time stutter when retimed unless frames are interpolated first (RIFE
-  or FILM, or the editor's optical-flow retime). This worker has no
-  interpolation node, so say where interpolation happens in the Post line.
+- **Frame rate.** Wan renders about 16 fps, so slow motion, speed ramps and
+  bullet-time stutter unless frames are interpolated before retiming. For
+  playback at `fps` with slow-down `k` (2 = half speed), the interpolation
+  multiplier is `fps × k / 16`. Half speed at 32 fps is 4×. A ramp down to 25%
+  is 8×, then ramp in the editor. Put the multiplier and RIFE or FILM in the
+  shot's Post line. Use FILM for whip pans, sprints and other large motion,
+  where RIFE can ghost. Above 4×, artifacts grow, so keep the slowest
+  section of a ramp short.
 - **Product consistency.** PuLID and the IP-Adapter in this worker lock
   faces, not objects. A product drifts from shot to shot unless its keyframes
   start from real product photos (image-to-image or inpainting the actual
