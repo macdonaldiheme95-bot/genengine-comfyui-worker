@@ -229,7 +229,18 @@ def apply_filters(frames, a):
 
 
 def fmt_s(x):
-    return "?" if x is None else f"{x:.1f}s"
+    """Seconds as m:ss or h:mm:ss, the way an editor or player shows them."""
+    if x is None:
+        return "?"
+    h, rem = divmod(int(x), 3600)
+    m, sec = divmod(rem, 60)
+    return f"{h}:{m:02d}:{sec:02d}" if h else f"{m}:{sec:02d}"
+
+
+def when(f):
+    if f.get("clip_start_s") is not None:
+        return f"clip {fmt_s(f['clip_start_s'])}–{fmt_s(f['clip_end_s'])}"
+    return f"at {fmt_s(f['at_s'])}" if f.get("at_s") is not None else ""
 
 
 def print_frames(frames, show_title):
@@ -243,11 +254,18 @@ def print_frames(frames, show_title):
             print(f"    {f['title']} ({f['year']}){by}  {SITE}/title/{f['title_slug']}")
         if f.get("description"):
             print(f"    {f['description']}")
-        if f.get("clip_start_s") is not None:
-            print(f"    clip {fmt_s(f['clip_start_s'])}–{fmt_s(f['clip_end_s'])}")
-        elif f.get("at_s") is not None:
-            print(f"    at {fmt_s(f['at_s'])}")
+        if when(f):
+            print(f"    {when(f)}")
         print(f"    still {f['still']}")
+
+
+def print_compact(frames, show_title):
+    for i, f in enumerate(frames, 1):
+        cells = [f"{i:>3}", f"{f['aesthetic'] or 0:.2f}", f"{f.get('shot') or '?'}/{f.get('angle') or '?'}"]
+        if show_title:
+            cells.append(f.get("title_slug") or "?")
+        cells += [when(f), (f.get("description") or "")[:60], f["still"]]
+        print(" | ".join(c for c in cells if c))
 
 
 def print_by_title(frames):
@@ -277,7 +295,7 @@ def emit(obj, frames, a, show_title):
         print_by_title(frames)
         return
     print(f"frames: {len(frames)} shown (sorted by genery aesthetic score)\n")
-    print_frames(frames, show_title)
+    (print_compact if a.compact else print_frames)(frames, show_title)
 
 
 # ── commands ────────────────────────────────────────────────────────────────
@@ -383,6 +401,7 @@ def main(argv=None):
                         " (captions exist on film/TV pages, rarely on ads or technique pages)")
         sp.add_argument("--min-score", type=float, help="minimum genery aesthetic score (most fall 5-6.5)")
         sp.add_argument("--top", type=int, default=12, help="how many frames to show (0 = all); default 12")
+        sp.add_argument("--compact", action="store_true", help="one line per frame, for scanning long lists")
         sp.add_argument("--json", action="store_true", help="machine-readable output")
 
     sp = sub.add_parser("search", help="find title slugs by name words")
@@ -426,6 +445,8 @@ def main(argv=None):
                          + (" (check the slug with `search`)" if e.code == 404 else ""))
     except (BudgetExceeded, PermissionError) as e:
         raise SystemExit(str(e))
+    except BrokenPipeError:  # output piped into head etc.
+        sys.stdout = open(os.devnull, "w")
     finally:
         print(f"[genery: {_stats['requests']} network requests, {_stats['cached']} from cache;"
               f" cache {CACHE}]", file=sys.stderr)

@@ -59,8 +59,15 @@ genery.py stills <still-url> [<still-url> ...]    # caches images, prints local 
 
 Frame filters: `--shot` (Extreme Close Up, Close Up, Medium, Wide, Extreme
 Wide), `--angle` (Low, High, Overhead, Over the shoulder), `--contains`,
-`--min-score`, `--top`, `--json`. Results are sorted by genery's aesthetic
-score. Most frames score 5-6.5, and 5.8+ is strong.
+`--min-score`, `--top` (0 = all), `--compact` (one line per frame, good for
+scanning a whole page), `--json`. Results are sorted by genery's aesthetic
+score. Most frames score 5-6.5, and 5.8+ is strong. Times print as m:ss or
+h:mm:ss. For films that's the moment in the movie; for ads and technique
+pages it's the clip's span.
+
+Each run may make 25 network requests (`--max-requests N` before the
+command raises it; cache hits are free). If you hit the limit, the search is
+too broad.
 
 `--contains` matches a frame's caption or its title name. Only film and TV
 pages carry captions ("a man in a coat standing in fog"). Ad and technique
@@ -106,12 +113,15 @@ design the gaps so the whole thing cuts together.
 2. **Choose the research route.** Usually combine two or three:
    - *Technique*: map each beat to a genery technique (`effect <slug>`), e.g.
      the hero reveal to arc or lazy-susan, energy to speed-ramp or whip-pan.
-   - *Category*: `search` brand or product words in the same category
-     (perfume: chanel, dior, perfume; cars: ford, bmw, audi, mercedes;
-     sportswear: nike, adidas, brooks; tech: apple, samsung). Then `title`
-     the best hits. Not every brand is in the catalog, so when a search comes
-     up empty, combine a technique with a neighbouring brand
-     (`effect slow-motion --contains adidas`).
+   - *Category*: `search` brand words in the same category, then `title` the
+     best hits. Coverage is uneven. It's deep for sportswear (nike, adidas,
+     brooks), Apple, music videos and films. It's thin for luxury fragrance
+     and fashion (a few Prada, Armani and Gucci titles) and for cars (a few
+     Ford and Audi, no BMW or Porsche). When a category is thin, don't force
+     it: films carry mood, light and blocking just as well (a night-city
+     fragrance spot can lean on crime-drama night photography), and technique
+     pages carry the product moves (`effect lazy-susan`, `effect void`,
+     `effect slow-motion --contains adidas`).
    - *Director or film*: when the user names one, or when a tone suggests one,
      use `director` for their titles and `title` with `--shot`/`--angle`
      filters for the frames you need.
