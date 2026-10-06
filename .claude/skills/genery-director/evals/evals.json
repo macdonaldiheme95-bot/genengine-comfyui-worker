@@ -1,0 +1,23 @@
+{
+  "skill_name": "genery-director",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I need a 30 second TV commercial for a new men's fragrance called NOCTIS. Dark, moody, night city, a bit dangerous but luxurious. Just handle it, give me the shot list and prompts so I can start generating.",
+      "expected_output": "Hands-free: states assumptions, 8-14 shots summing to ~30s, each with genery references (links, what each contributed), keyframe + motion prompts free of film/director/brand names, saved to shotlists/.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "15s spot for a running shoe. Shot 1: extreme close up of laces being pulled tight, low angle. Shot 2: whip pan to the runner's face, medium close up. Shot 3: wide, she sprints off down an empty highway at dawn, speed ramp. Shot 4: product hero on black. Find me real references for each and tighten up the details, but don't change my shots.",
+      "expected_output": "Over-direct: keeps all 4 user shots and their specified sizes/angles/techniques, adds references per shot, fills unspecified details, flags conflicts without overriding.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "make me a 9:16 music video teaser, 10 seconds, for an afrobeats track. I want it to feel like a Dave Meyers video. Lots of energy, colour.",
+      "expected_output": "Uses director lookup for Dave Meyers, 9:16 composition, energetic techniques (quick-cuts, speed-ramp, camera-roll, fisheye), prompts don't name Dave Meyers.",
+      "files": []
+    }
+  ]
+}
