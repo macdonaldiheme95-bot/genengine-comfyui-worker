@@ -52,6 +52,7 @@ ROBOTS_TTL_S = 24 * 3600
 CACHE = Path(os.environ.get("GENERY_CACHE") or Path.home() / ".cache" / "genery-director")
 
 _budget = {"left": 25}
+_stats = {"requests": 0, "cached": 0}
 _robots = None
 
 
@@ -82,6 +83,7 @@ def _download(url):
         raise BudgetExceeded(
             "request budget for this run is spent; narrow the search or pass --max-requests")
     _budget["left"] -= 1
+    _stats["requests"] += 1
     _throttle()
     req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
     with urllib.request.urlopen(req, timeout=30) as resp:
@@ -99,6 +101,7 @@ def _allowed(url):
 def fetch_bytes(url, ttl, check_robots=True, subdir="pages", suffix=".html"):
     path = CACHE / subdir / (hashlib.sha1(url.encode()).hexdigest() + suffix)
     if path.exists() and time.time() - path.stat().st_mtime < ttl:
+        _stats["cached"] += 1
         return path.read_bytes()
     if check_robots and url.startswith(SITE) and not _allowed(url):
         raise PermissionError(f"robots.txt disallows {url}")
@@ -214,9 +217,12 @@ def title_index():
 def apply_filters(frames, a):
     def has(value, wanted):
         return wanted is None or (value or "").lower().find(wanted.lower()) >= 0
+    if a.contains and frames and not any(f.get("description") for f in frames):
+        print("note: this page has no frame captions (ads and technique pages usually don't);"
+              " --contains is matching title names only", file=sys.stderr)
     out = [f for f in frames
            if has(f.get("shot"), a.shot) and has(f.get("angle"), a.angle)
-           and has(f.get("description"), a.contains)
+           and (has(f.get("description"), a.contains) or has(f.get("title"), a.contains))
            and (a.min_score is None or (f["aesthetic"] or 0) >= a.min_score)]
     out.sort(key=lambda f: -(f["aesthetic"] or 0))
     return out[: a.top] if a.top else out
@@ -244,6 +250,20 @@ def print_frames(frames, show_title):
         print(f"    still {f['still']}")
 
 
+def print_by_title(frames):
+    groups = {}
+    for f in frames:
+        groups.setdefault(f.get("title_slug") or "?", []).append(f)
+    rows = sorted(groups.items(), key=lambda kv: -max(f["aesthetic"] or 0 for f in kv[1]))
+    print(f"titles: {len(rows)} (best score, frame count, shot sizes)\n")
+    for slug, fs in rows:
+        f0 = fs[0]
+        sizes = ", ".join(sorted({f.get("shot") or "?" for f in fs}))
+        by = f" — dir. {f0['director']}" if f0.get("director") else ""
+        print(f"[{max(f['aesthetic'] or 0 for f in fs):.2f}] x{len(fs):<3} {f0.get('title', '?')} ({f0.get('year', '?')}){by}")
+        print(f"    {SITE}/title/{slug}   {sizes}")
+
+
 def emit(obj, frames, a, show_title):
     if a.json:
         obj["frames"] = frames
@@ -253,6 +273,9 @@ def emit(obj, frames, a, show_title):
     for k, v in obj.items():
         if v:
             print(f"{k}: {', '.join(v) if isinstance(v, list) else v}")
+    if getattr(a, "by_title", False):
+        print_by_title(frames)
+        return
     print(f"frames: {len(frames)} shown (sorted by genery aesthetic score)\n")
     print_frames(frames, show_title)
 
@@ -260,8 +283,11 @@ def emit(obj, frames, a, show_title):
 # ── commands ────────────────────────────────────────────────────────────────
 
 def cmd_search(a):
-    words = [w.lower() for w in a.words]
-    hits = [s for s in title_index() if all(w in s for w in words)]
+    words = [w for w in slug_words(" ".join(a.words)).split("-") if w]
+    def matches(slug):
+        parts = slug.split("-")
+        return all(any(p.startswith(w) for p in parts) for w in words)
+    hits = [s for s in title_index() if matches(s)]
     if a.year:
         hits = [s for s in hits if s.endswith(str(a.year))]
     for s in hits[: a.limit]:
@@ -269,7 +295,8 @@ def cmd_search(a):
     if len(hits) > a.limit:
         print(f"... {len(hits) - a.limit} more; add words to narrow")
     if not hits:
-        print("no titles match; try fewer or different words (slugs are lowercase-hyphenated)")
+        print("no titles match; try fewer or different words, or a technique instead"
+              " (genery's catalog is broad but not every brand is in it)")
 
 
 def cmd_effects(a):
@@ -335,7 +362,9 @@ def cmd_stills(a):
             raise SystemExit(f"not a genery still URL: {u}")
         name = hashlib.sha1(u.encode()).hexdigest()[:16] + ".jpg"
         path = CACHE / "stills" / name
-        if not path.exists():
+        if path.exists():
+            _stats["cached"] += 1
+        else:
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(_download(u))
         print(path)
@@ -350,7 +379,8 @@ def main(argv=None):
     def frame_opts(sp):
         sp.add_argument("--shot", help="shot size contains, e.g. 'close up', 'extreme wide', 'medium'")
         sp.add_argument("--angle", help="angle contains, e.g. 'low', 'high', 'over the shoulder'")
-        sp.add_argument("--contains", help="frame description contains this text, e.g. 'car', 'woman'")
+        sp.add_argument("--contains", help="caption or title contains this text, e.g. 'car', 'nike'"
+                        " (captions exist on film/TV pages, rarely on ads or technique pages)")
         sp.add_argument("--min-score", type=float, help="minimum genery aesthetic score (most fall 5-6.5)")
         sp.add_argument("--top", type=int, default=12, help="how many frames to show (0 = all); default 12")
         sp.add_argument("--json", action="store_true", help="machine-readable output")
@@ -367,6 +397,8 @@ def main(argv=None):
     sp = sub.add_parser("effect", help="frames for one technique, e.g. speed-ramp")
     sp.add_argument("slug")
     frame_opts(sp)
+    sp.add_argument("--by-title", action="store_true",
+                    help="summarise which titles show this technique (applies filters, ignores --top)")
     sp.set_defaults(fn=cmd_effect)
 
     sp = sub.add_parser("title", help="frames from one title, e.g. ford-kuga-levels-2021")
@@ -385,6 +417,8 @@ def main(argv=None):
 
     a = p.parse_args(argv)
     _budget["left"] = a.max_requests
+    if getattr(a, "by_title", False):
+        a.top = 0
     try:
         a.fn(a)
     except urllib.error.HTTPError as e:
@@ -392,6 +426,9 @@ def main(argv=None):
                          + (" (check the slug with `search`)" if e.code == 404 else ""))
     except (BudgetExceeded, PermissionError) as e:
         raise SystemExit(str(e))
+    finally:
+        print(f"[genery: {_stats['requests']} network requests, {_stats['cached']} from cache;"
+              f" cache {CACHE}]", file=sys.stderr)
 
 
 if __name__ == "__main__":

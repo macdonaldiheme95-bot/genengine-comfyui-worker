@@ -34,35 +34,45 @@ on the right side of that line. Everything below follows from it:
 - **Prompts name techniques, not sources.** Leave film titles, director names,
   actor names and brands out of generation prompts. Models respond better to
   concrete description anyway.
-- **Look things up, don't crawl.** Fetch only what the brief needs, usually
-  2-6 pages and 6-15 stills per project. The script enforces robots.txt, one
-  request per second, caching and a per-run request budget. Don't work around
-  those limits or loop over the sitemap.
+- **Look things up, don't crawl.** Fetch only what the brief needs: usually a
+  few pages, plus 1-3 stills per shot (more when the first picks don't hold
+  up). The script enforces robots.txt, one request per second, caching and a
+  per-run request budget, and reports its request count on stderr. Don't work
+  around those limits or loop over the sitemap.
 
 ## The helper script
 
 `scripts/genery.py` (Python 3, standard library only) reads genery's public
-pages and prints compact text. Run it from this skill's base directory:
+pages and prints compact text. Call it by its full path inside this skill's
+base directory, shown as `genery.py` below:
 
 ```bash
-python3 scripts/genery.py search perfume              # find titles by name words
-python3 scripts/genery.py effects                     # list technique slugs
-python3 scripts/genery.py effect speed-ramp --shot wide --top 8
-python3 scripts/genery.py title ford-kuga-levels-2021 --angle low --min-score 5.8
-python3 scripts/genery.py director "Denis Villeneuve"
-python3 scripts/genery.py stills <still-url> [<still-url> ...]   # prints local paths
+genery.py search perfume              # titles whose name words start with these
+genery.py effects                     # list technique slugs
+genery.py effect speed-ramp --by-title            # which titles show a technique
+genery.py effect speed-ramp --contains nike       # a technique, within one brand's ads
+genery.py effect lazy-susan --shot "close up" --top 8
+genery.py title ford-kuga-levels-2021 --angle low --min-score 5.8
+genery.py director "Denis Villeneuve"
+genery.py stills <still-url> [<still-url> ...]    # caches images, prints local paths
 ```
 
 Frame filters: `--shot` (Extreme Close Up, Close Up, Medium, Wide, Extreme
-Wide), `--angle` (Low, High, Overhead, Over the shoulder), `--contains`
-(caption text), `--min-score`, `--top`, `--json`. Results are sorted by
-genery's aesthetic score. Most frames score 5-6.5, and 5.8+ is strong.
+Wide), `--angle` (Low, High, Overhead, Over the shoulder), `--contains`,
+`--min-score`, `--top`, `--json`. Results are sorted by genery's aesthetic
+score. Most frames score 5-6.5, and 5.8+ is strong.
 
-`stills` caches images under `~/.cache/genery-director/stills/`. Open each
-path with your image-reading tool and actually look at it. Genery's tags are
-coarse: five shot sizes, four angles and an auto caption. Lens, light,
-colour, blocking, Dutch angles and eye-level framing only show up in the
-image.
+`--contains` matches a frame's caption or its title name. Only film and TV
+pages carry captions ("a man in a coat standing in fog"). Ad and technique
+pages have just title, shot size and angle. So you can't filter those by
+content, but `--contains <brand>` on a technique page works well.
+
+`stills` caches images in the script's cache directory (printed on stderr;
+`~/.cache/genery-director` unless `GENERY_CACHE` is set). Open each path with
+your image-reading tool and actually look at it. Genery's tags are coarse and
+sometimes wrong: "Low angle" can mean shoe height, and a top-scoring speed-ramp
+frame can be a CG city when you wanted a runner. Lens, light, colour,
+blocking, Dutch angles and eye-level framing only show up in the image.
 
 `references/techniques.md` has all 58 technique slugs with definitions,
 grouped by where each effect is made (in-camera, in the edit, or in
@@ -98,18 +108,27 @@ design the gaps so the whole thing cuts together.
      the hero reveal to arc or lazy-susan, energy to speed-ramp or whip-pan.
    - *Category*: `search` brand or product words in the same category
      (perfume: chanel, dior, perfume; cars: ford, bmw, audi, mercedes;
-     sportswear: nike, adidas; tech: apple, samsung). Then `title` the best hits.
+     sportswear: nike, adidas, brooks; tech: apple, samsung). Then `title`
+     the best hits. Not every brand is in the catalog, so when a search comes
+     up empty, combine a technique with a neighbouring brand
+     (`effect slow-motion --contains adidas`).
    - *Director or film*: when the user names one, or when a tone suggests one,
      use `director` for their titles and `title` with `--shot`/`--angle`
      filters for the frames you need.
-3. **Shortlist, then look.** Take the top-scoring frames that fit each shot,
-   cache 1-3 stills per shot, and look at every one. Drop any reference
-   whose image doesn't actually show what you need, however good its tags.
+3. **Shortlist, then look.** Use `--by-title` to see which titles cover a
+   technique, take the top-scoring frames that fit each shot, cache 1-3
+   stills per shot, and look at every one. Drop any reference whose image
+   doesn't actually show what you need, however good its tags. If nothing in
+   the library fits part of a shot, say which part and design it yourself.
+   A partly referenced shot is fine. A reference that doesn't fit is worse
+   than none.
 4. **Write the shot list.** Use the recipe format in
    `references/shot-recipe.md`. Each shot gets a beat, frame, lens, camera,
    blocking, light, colour, technique, transition, its references (with what
    each one contributed), a keyframe prompt, a motion prompt and post notes.
-   Plan timing so the shots add up to the spot length.
+   Plan timing so the shots add up to the spot length. Put production risks
+   where the user will see them: product consistency across shots, frame
+   rate for slow motion and ramps, and any user choice you've flagged.
 5. **Save and summarise.** Write the shot list to
    `shotlists/<yyyy-mm-dd>-<project-slug>.md` in the current project unless
    the user wants it elsewhere. In chat, give a short overview: the concept in

@@ -56,7 +56,8 @@ References:
   - ref B: ...
 Keyframe prompt: ...
 Motion prompt: ...
-Post: retime 100%→40% at the peak; grade teal/amber; letterbox 2.39
+Post: interpolate, then retime 100%→40% at the peak; grade teal/amber; letterbox 2.39
+Flags: (only if any) conflicts with the user's spec, library gaps, production risks
 ```
 
 ## Writing generation prompts
@@ -95,6 +96,18 @@ The worker in this repo (see Dockerfile/README) runs:
 - **Motion**: Wan 2.2 image-to-video at 480p. Plan clips around ~5s per
   generation and cut tighter in the edit.
 - **Finish**: 4x-UltraSharp upscale, then edit, retime and grade outside ComfyUI.
+
+Two limits shape the plan:
+
+- **Frame rate.** Wan renders about 16 fps. Slow motion, speed ramps and
+  bullet-time stutter when retimed unless frames are interpolated first (RIFE
+  or FILM, or the editor's optical-flow retime). This worker has no
+  interpolation node, so say where interpolation happens in the Post line.
+- **Product consistency.** PuLID and the IP-Adapter in this worker lock
+  faces, not objects. A product drifts from shot to shot unless its keyframes
+  start from real product photos (image-to-image or inpainting the actual
+  packshot), or the hero product is composited in post. Say which approach
+  each product shot uses.
 
 So each shot gets a keyframe prompt (SDXL, full look description) and a motion
 prompt (Wan, movement only). For blocking with OpenPose, author the pose
